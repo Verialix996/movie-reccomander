@@ -126,6 +126,80 @@ def _is_quota_error(e: Exception) -> bool:
     return any(k in msg for k in ("429", "quota", "rate limit", "resource exhausted", "too many requests"))
 
 
+REFINE_SYSTEM = """You are a movie expert continuing a recommendation conversation.
+The user already received picks and wants to refine or explore further.
+
+If they ask for different/refined movies (different mood, genre, era, director, actor, tone, language):
+- Pick 2-3 new movies from the candidate list that better match the updated preference.
+- Return JSON: {"type": "recs", "intro": "one short sentence acknowledging the change", "recommendations": [{"title": "...", "year": "...", "genres": "...", "explanation": "one sentence"}]}
+
+If they ask about a specific movie, ask a follow-up, or say something conversational:
+- Return JSON: {"type": "chat", "message": "your short reply"}
+
+Rules:
+- Never invent movies. Only recommend from the candidate list.
+- No filler phrases. Keep it short.
+- Reply in the same language the user is writing in."""
+
+
+def refine_recommendations(
+    qa_pairs: list[tuple[str, str]],
+    previous_recs: list[dict],
+    refinement_history: list[dict],
+    candidates: pd.DataFrame,
+) -> dict:
+    """Handle free-text follow-up after initial recommendations."""
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
+
+    qa_text = "\n".join(f"Q: {q}\nA: {a}" for q, a in qa_pairs)
+    prev_text = "\n".join(
+        f"- {r['title']} ({r.get('year', '')}): {r.get('explanation', '')}"
+        for r in previous_recs if r.get("title") != "Error"
+    )
+    history_text = "\n".join(
+        f"{'User' if m['role'] == 'user' else 'Bot'}: {m['content']}"
+        for m in refinement_history
+        if m.get("content")
+    )
+    candidate_block = _build_candidate_block(candidates)
+
+    user_message = f"""Original Q&A:
+{qa_text}
+
+Previous recommendations:
+{prev_text}
+
+Follow-up conversation:
+{history_text}
+
+Candidate movies (title | year | genres | imdb_rating):
+{candidate_block}"""
+
+    for model in MODELS:
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=user_message,
+                config=types.GenerateContentConfig(
+                    system_instruction=REFINE_SYSTEM,
+                    response_mime_type="application/json",
+                    temperature=0.7,
+                ),
+            )
+            data = json.loads(response.text)
+            if data.get("type") in ("recs", "chat"):
+                return data
+            return {"type": "chat", "message": str(data)}
+        except (json.JSONDecodeError, KeyError):
+            return {"type": "chat", "message": "Sorry, I couldn't process that. Try rephrasing?"}
+        except Exception as e:
+            if _is_quota_error(e):
+                continue
+            return {"type": "chat", "message": f"Error: {e}"}
+
+    return {"type": "chat", "message": "All models are busy right now. Try again in a moment."}
+
+
 def get_recommendations(
     qa_pairs: list[tuple[str, str]],
     candidates: pd.DataFrame,
