@@ -15,7 +15,7 @@ if not os.path.exists("data/movies.csv"):
     st.stop()
 
 from recommender import load_movies, get_candidates
-from gemini_client import get_recommendations, get_next_question
+from gemini_client import get_recommendations, get_next_question, is_valid_answer
 
 FIRST_QUESTION = "What kind of mood are you in right now?"
 TOTAL_QUESTIONS = 5
@@ -69,13 +69,28 @@ if st.session_state.done and st.session_state.recommendations:
             del st.session_state[key]
         st.rerun()
 
+OUT_OF_SCOPE_MSG = (
+    "I'm a movie recommendation chatbot — I can only help you find a film to watch. "
+    "Just answer the question above, or type **skip** to move on."
+)
+
 # Accept user input while Q&A is in progress
 elif not st.session_state.done:
     if prompt := st.chat_input("Your answer..."):
-        # Display and store user answer
         with st.chat_message("user"):
             st.markdown(prompt)
         st.session_state.messages.append({"role": "user", "content": prompt})
+
+        # Validate before advancing
+        with st.spinner(""):
+            valid = is_valid_answer(prompt)
+
+        if not valid:
+            with st.chat_message("assistant"):
+                st.markdown(OUT_OF_SCOPE_MSG)
+            st.session_state.messages.append({"role": "assistant", "content": OUT_OF_SCOPE_MSG})
+            st.stop()
+
         st.session_state.answers.append(prompt)
         st.session_state.current_q += 1
 

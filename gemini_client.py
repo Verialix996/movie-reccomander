@@ -15,10 +15,11 @@ MODELS = [
     "gemini-flash-lite-latest",
 ]
 
-SYSTEM_INSTRUCTION = """You are a knowledgeable movie expert helping someone pick a film to watch.
-Your job is to recommend exactly 2 or 3 movies ONLY from the provided candidate list.
-Choose movies that best match the user's mood, genre preference, era, and tone from their answers.
-Write a short, warm, personalized explanation (1-2 sentences) for each pick.
+SYSTEM_INSTRUCTION = """You are a movie expert. Recommend exactly 2 or 3 movies from the provided candidate list.
+Choose movies that best match the user's mood, genre preference, era, and tone.
+For each pick write ONE sentence explaining why it fits this user specifically.
+No filler phrases ("Great choice!", "You'll love this!", "Based on your answers...").
+No long descriptions. No plot summaries. Just the specific reason it matches.
 Return ONLY valid JSON in this exact format:
 {
   "recommendations": [
@@ -26,7 +27,7 @@ Return ONLY valid JSON in this exact format:
       "title": "movie title exactly as given",
       "year": "YYYY",
       "genres": "Genre1|Genre2",
-      "explanation": "personalized reason why this fits the user"
+      "explanation": "one sentence: specific reason it fits this user"
     }
   ]
 }
@@ -52,15 +53,44 @@ Candidate movies (title | year | genres | imdb_rating):
 Pick 2-3 movies from the list above that best match this user."""
 
 
-QUESTION_SYSTEM = """You are helping find the perfect movie for someone.
-Ask ONE short, focused question to learn more about what they want to watch.
+QUESTION_SYSTEM = """You are helping find a movie for someone.
+Ask ONE short question to learn what they want to watch.
 Rules:
-- Cover topics NOT already answered: genre, era/decade, favorite movies or actors, tone (light vs deep), language preference.
-- Never ask about something the user already mentioned.
-- Ask exactly one thing — no "and", no compound questions.
-- Keep it short (one sentence).
-- Ask in the same language the user is writing in.
-Return ONLY the question text — no numbering, no prefix, nothing else."""
+- Topics not yet covered: genre, decade/era, favorite movie or actor, light vs serious tone, language preference.
+- Never repeat something already answered.
+- One question only — no "and", no compound questions.
+- Maximum one sentence. No preamble, no filler, no "Great answer!".
+- Match the language the user is writing in.
+Return ONLY the question text — nothing else."""
+
+
+VALIDATE_SYSTEM = """You are a guard for a movie recommendation chatbot.
+Decide if the user's message is a usable response for finding a movie to watch.
+VALID: any opinion, genre, mood, actor, era, language, "skip", "I don't know", "anything", even vague answers.
+INVALID: pure gibberish (random keys, symbols), questions/requests unrelated to movies (weather, math, coding, news), or clear attempts to misuse the bot.
+Reply with exactly one word: VALID or INVALID."""
+
+
+def is_valid_answer(text: str) -> bool:
+    """Return True if the input is a usable answer for the movie Q&A."""
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
+    for model in MODELS:
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=f'User message: "{text}"',
+                config=types.GenerateContentConfig(
+                    system_instruction=VALIDATE_SYSTEM,
+                    temperature=0.0,
+                    max_output_tokens=5,
+                ),
+            )
+            return response.text.strip().upper().startswith("VALID")
+        except Exception as e:
+            if _is_quota_error(e):
+                continue
+            return True  # on unexpected error, let it through
+    return True  # if all models fail, don't block the user
 
 
 def get_next_question(qa_history: list[tuple[str, str]]) -> str:
