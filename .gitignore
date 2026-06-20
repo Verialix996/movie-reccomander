@@ -12,3 +12,7 @@ data/processed/
 dist/
 build/
 .pytest_cache/
+tests/
+docs/
+test results/
+graphify-out/
