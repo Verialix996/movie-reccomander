@@ -18,7 +18,7 @@ from recommender import load_movies, get_candidates
 from gemini_client import get_recommendations, get_next_question, is_valid_answer, refine_recommendations
 
 FIRST_QUESTION = "What kind of mood are you in right now?"
-TOTAL_QUESTIONS = 5
+TOTAL_QUESTIONS = 4
 OUT_OF_SCOPE_MSG = (
     "I'm a movie recommendation chatbot — I can only help you find a film to watch. "
     "Just answer the question above, or type **skip** to move on."

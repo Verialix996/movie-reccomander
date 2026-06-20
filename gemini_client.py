@@ -56,7 +56,7 @@ Pick 2-3 movies from the list above that best match this user."""
 QUESTION_SYSTEM = """You are helping find a movie for someone.
 Ask ONE short question to learn what they want to watch.
 Rules:
-- Topics not yet covered: genre, decade/era, favorite movie or actor, light vs serious tone, language preference.
+- Topics not yet covered: genre, decade/era, light vs serious tone, language preference.
 - Never repeat something already answered.
 - One question only — no "and", no compound questions.
 - Maximum one sentence. No preamble, no filler, no "Great answer!".
@@ -116,7 +116,7 @@ def get_next_question(qa_history: list[tuple[str, str]]) -> str:
             if _is_quota_error(e):
                 last_error = e
                 continue
-            return "Any specific actors, directors, or a movie you already love?"
+            return "Do you prefer a light/fun tone or something more serious?"
 
     return "Any specific actors, directors, or a movie you already love?"
 
