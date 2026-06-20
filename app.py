@@ -19,6 +19,10 @@ from gemini_client import get_recommendations, get_next_question, is_valid_answe
 
 FIRST_QUESTION = "What kind of mood are you in right now?"
 TOTAL_QUESTIONS = 5
+OUT_OF_SCOPE_MSG = (
+    "I'm a movie recommendation chatbot — I can only help you find a film to watch. "
+    "Just answer the question above, or type **skip** to move on."
+)
 
 st.title("Movie Recommendation Chatbot")
 st.caption("Answer a few quick questions and I'll find movies you'll love.")
@@ -68,11 +72,6 @@ if st.session_state.done and st.session_state.recommendations:
         for key in ["messages", "current_q", "answers", "questions_asked", "recommendations", "done"]:
             del st.session_state[key]
         st.rerun()
-
-OUT_OF_SCOPE_MSG = (
-    "I'm a movie recommendation chatbot — I can only help you find a film to watch. "
-    "Just answer the question above, or type **skip** to move on."
-)
 
 # Accept user input while Q&A is in progress
 elif not st.session_state.done:
