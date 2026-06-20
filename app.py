@@ -57,6 +57,8 @@ for msg in st.session_state.messages:
 def render_rec_cards(recs: list[dict]):
     """Render movie recommendation cards."""
     for rec in recs:
+        if not isinstance(rec, dict):
+            continue
         if rec.get("title") == "Error":
             st.error(rec.get("explanation", "An error occurred."))
             continue

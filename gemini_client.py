@@ -127,19 +127,30 @@ def _is_quota_error(e: Exception) -> bool:
 
 
 REFINE_SYSTEM = """You are a movie expert continuing a recommendation conversation.
-The user already received picks and wants to refine or explore further.
+The user already received movie picks and may want to refine them or ask about movies.
 
-If they ask for different/refined movies (different mood, genre, era, director, actor, tone, language):
-- Pick 2-3 new movies from the candidate list that better match the updated preference.
-- Return JSON: {"type": "recs", "intro": "one short sentence acknowledging the change", "recommendations": [{"title": "...", "year": "...", "genres": "...", "explanation": "one sentence"}]}
+Decide which case applies:
 
-If they ask about a specific movie, ask a follow-up, or say something conversational:
-- Return JSON: {"type": "chat", "message": "your short reply"}
+CASE A — user wants DIFFERENT movies (asks to change genre, mood, era, director, actor, tone, language, or says "something else", "not that", "more like X"):
+- Pick 2-3 new movies from the candidate list.
+- Return: {"type": "recs", "intro": "one short sentence", "recommendations": [{"title": "...", "year": "...", "genres": "...", "explanation": "one sentence why it fits"}]}
+
+CASE B — user asks a factual question ABOUT a movie (what language, who directed, what year, plot summary, cast):
+- Answer the question directly and briefly. Do NOT suggest similar movies.
+- Return: {"type": "chat", "message": "your factual answer"}
+
+CASE C — user asks something completely unrelated to movies (politics, weather, math, coding, news):
+- Politely redirect them.
+- Return: {"type": "chat", "message": "I can only help with movie recommendations. Ask me to refine your picks or tell me what kind of film you're in the mood for."}
+
+CASE D — anything else (follow-up question, general movie chat):
+- Return: {"type": "chat", "message": "your short reply"}
 
 Rules:
-- Never invent movies. Only recommend from the candidate list.
-- No filler phrases. Keep it short.
-- Reply in the same language the user is writing in."""
+- Never invent movies. In CASE A, only recommend from the candidate list provided.
+- No filler phrases. Keep responses short.
+- Reply in the same language the user is writing in.
+- Always return valid JSON matching one of the formats above."""
 
 
 def refine_recommendations(
@@ -187,9 +198,10 @@ Candidate movies (title | year | genres | imdb_rating):
                 ),
             )
             data = json.loads(response.text)
-            if data.get("type") in ("recs", "chat"):
+            if isinstance(data, dict) and data.get("type") in ("recs", "chat"):
                 return data
-            return {"type": "chat", "message": str(data)}
+            # Gemini returned a JSON array or unexpected shape — treat as chat
+            return {"type": "chat", "message": response.text.strip()}
         except (json.JSONDecodeError, KeyError):
             return {"type": "chat", "message": "Sorry, I couldn't process that. Try rephrasing?"}
         except Exception as e:
