@@ -156,11 +156,6 @@ elif not st.session_state.done:
                 st.markdown(reply)
             st.session_state.messages.append({"role": "assistant", "content": reply})
         else:
-            thinking_msg = "Great answers! Let me find some movies for you..."
-            with st.chat_message("assistant"):
-                st.markdown(thinking_msg)
-            st.session_state.messages.append({"role": "assistant", "content": thinking_msg})
-
             with st.spinner("Searching through the movie database..."):
                 candidates = get_candidates(st.session_state.df, st.session_state.answers)
                 qa_pairs = list(zip(st.session_state.questions_asked, st.session_state.answers))
