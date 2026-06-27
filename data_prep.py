@@ -20,44 +20,33 @@ def download(url: str, dest: str) -> None:
         return
     print(f"  downloading {url}")
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    tmp_dest = f"{dest}.part"
-    if os.path.exists(tmp_dest):
-        os.remove(tmp_dest)
     with requests.get(url, stream=True, timeout=120) as r:
         r.raise_for_status()
         total = int(r.headers.get("content-length", 0))
         downloaded = 0
-        with open(tmp_dest, "wb") as f:
+        with open(dest, "wb") as f:
             for chunk in r.iter_content(chunk_size=1024 * 1024):
-                if not chunk:
-                    continue
                 f.write(chunk)
                 downloaded += len(chunk)
                 if total:
                     pct = downloaded / total * 100
                     print(f"    {pct:.1f}%", end="\r", flush=True)
-    os.replace(tmp_dest, dest)
     print(f"    done ({downloaded / 1e6:.1f} MB)")
 
 
-def step_download() -> bool:
+def step_download() -> None:
     print("\n[1/4] Downloading raw datasets...")
     download(SOURCES["imdb_basics"], f"{RAW_DIR}/title.basics.tsv.gz")
     download(SOURCES["imdb_ratings"], f"{RAW_DIR}/title.ratings.tsv.gz")
 
     ml_zip = f"{RAW_DIR}/ml-latest.zip"
     ml_dir = f"{RAW_DIR}/ml-latest"
-    try:
-        download(SOURCES["movielens"], ml_zip)
-        if not os.path.exists(ml_dir):
-            print("  extracting ml-latest.zip ...")
-            with zipfile.ZipFile(ml_zip, "r") as z:
-                z.extractall(RAW_DIR)
-            print("  extracted.")
-        return True
-    except (requests.RequestException, zipfile.BadZipFile, OSError) as e:
-        print(f"  MovieLens unavailable, continuing with IMDb-only data: {e}")
-        return False
+    download(SOURCES["movielens"], ml_zip)
+    if not os.path.exists(ml_dir):
+        print("  extracting ml-latest.zip ...")
+        with zipfile.ZipFile(ml_zip, "r") as z:
+            z.extractall(RAW_DIR)
+        print("  extracted.")
 
 
 def step_imdb() -> pd.DataFrame:
@@ -115,11 +104,6 @@ def step_movielens() -> pd.DataFrame:
     return ml[["tconst", "ml_rating", "ml_votes"]]
 
 
-def empty_movielens() -> pd.DataFrame:
-    print("\n[3/4] Skipping MovieLens data...")
-    return pd.DataFrame(columns=["tconst", "ml_rating", "ml_votes"])
-
-
 def step_merge(imdb_df: pd.DataFrame, ml_df: pd.DataFrame) -> pd.DataFrame:
     print("\n[4/4] Merging and saving...")
     combined = imdb_df.merge(ml_df, on="tconst", how="left")
@@ -143,8 +127,8 @@ if __name__ == "__main__":
             print("Skipping. Delete data/movies.csv to force a rebuild.")
             sys.exit(0)
 
-    has_movielens = step_download()
+    step_download()
     imdb_df = step_imdb()
-    ml_df = step_movielens() if has_movielens else empty_movielens()
+    ml_df = step_movielens()
     step_merge(imdb_df, ml_df)
     print("\nDone! Run: streamlit run app.py")
