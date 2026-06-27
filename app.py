@@ -1,4 +1,6 @@
 import os
+import subprocess
+import sys
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -11,8 +13,16 @@ if not os.environ.get("GEMINI_API_KEY"):
     st.stop()
 
 if not os.path.exists("data/movies.csv"):
-    st.error("Dataset not found. Run `python data_prep.py` first to download and build the movie database.")
-    st.stop()
+    with st.spinner("Dataset not found. Building movie database..."):
+        try:
+            subprocess.run([sys.executable, "data_prep.py"], check=True)
+        except subprocess.CalledProcessError as e:
+            st.error(f"Dataset build failed. Run `python data_prep.py` manually and check the logs. ({e})")
+            st.stop()
+
+    if not os.path.exists("data/movies.csv"):
+        st.error("Dataset build finished, but data/movies.csv was not created.")
+        st.stop()
 
 from recommender import load_movies, get_candidates
 from gemini_client import get_recommendations, get_next_question, is_valid_answer, refine_recommendations

@@ -5,6 +5,7 @@ __pycache__/
 .env
 models/*.joblib
 data/raw/
+data/movies.csv
 data/processed/
 *.ipynb_checkpoints/
 .DS_Store
